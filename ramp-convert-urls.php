@@ -14,19 +14,31 @@ function cfcu_register_deploy_callbacks() {
 }
 
 add_action('cfd_admin_init', 'cfcu_register_deploy_callbacks');
-	
+
+// running on source environment
+add_filter( 'ramp_get_preflight_extras', 'ramp_convert_urls_triggering_notification', 99 );
+
+function ramp_convert_urls_triggering_notification( $extras ) {
+	$new = array();
+	$new['post-url-updater'] = array();
+	$new['post-url-updater']['__message__'] = 'URLs in post content will be translated.';
+
+	error_log( 'extras in source plugin ' . print_r($extras, true) );
+	return array_merge( $extras, $new );
+}
+
 class cfcu_deploy_callbacks {
 	protected $name = 'Post URL updater';
 	protected $description = '';
-	
+
 	public function __construct() {
 		$this->description = __('Update URLs in post content', 'cfcu');
 	}
 
 	public function register_deploy_callbacks() {
-		cfd_register_deploy_callback($this->name, $this->description, 
+		cfd_register_deploy_callback($this->name, $this->description,
 			array(
-				'send_callback' => array($this, 'cfcu_send_callback'), 
+				'send_callback' => array($this, 'cfcu_send_callback'),
 				'receive_callback' => array($this, 'cfcu_receive_callback'),
 				'preflight_send_callback' => array($this, 'cfcu_preflight_send_callback'),
 				'preflight_check_callback' => array($this, 'cfcu_preflight_check_callback'),
@@ -71,7 +83,7 @@ class cfcu_deploy_callbacks {
 	public function cfcu_preflight_check_callback($data, $batch_data) {
 		$ret = array();
 		$errors = array();
-		
+
 		if (isset($batch_data['post_types']) && !empty($batch_data['post_types'])) {
 			$ret['__message__'] = __('URLs in post content will be translated.', 'cfcu');
 		}
@@ -79,26 +91,21 @@ class cfcu_deploy_callbacks {
 			$ret['__message__'] = __('No posts in batch, no action needed.', 'cfcu');
 		}
 
-		
+
 		return $ret;
 	}
-	
+
 	public function cfcu_preflight_display_callback($batch_preflight_data) {
 		return $batch_preflight_data;
 	}
 
 // Transfer Callback Methods
-	
+
 	public function cfcu_send_callback($batch_data) {
 		$ret = array();
 
 		$extra_id = cfd_make_callback_id($this->name);
 
-		if (!(isset($batch_data['extras']) &&
-				isset($batch_data['extras'][$extra_id]) &&
-				in_array('cfcu_config', $batch_data['extras'][$extra_id]))) {
-			return null;
-		}
 		$post_guids = array();
 		if (!empty($batch_data['post_types'])) {
 			foreach ($batch_data['post_types'] as $post_type => $posts) {
@@ -117,7 +124,7 @@ class cfcu_deploy_callbacks {
 		}
 		return $ret;
 	}
-	
+
 	public function cfcu_receive_callback($cfcu_settings) {
 		global $wpdb;
 		$success = true;
@@ -132,7 +139,7 @@ class cfcu_deploy_callbacks {
 			foreach ($cfcu_settings['guids'] as $guid => $true) {
 				$post_id = cfd_get_post_id_by_guid($guid);
 				$post = get_post($post_id);
-				if (!$post) { 
+				if (!$post) {
 					$messages[] = "couldn't get post $post_id from guid $guid";
 					continue;
 				}
